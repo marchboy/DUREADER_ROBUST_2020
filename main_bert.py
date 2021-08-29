@@ -243,6 +243,22 @@ def train(args, train_dataset, model, tokenizer):
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])
         for step, batch in enumerate(epoch_iterator):
             # Skip past any already trained steps if resuming training
+
+            if steps_trained_in_current_epoch > 0:
+                steps_trained_in_current_epoch -= 1
+                continue
+
+            model.train()
+            batch = tuple(t.to(args.device) for t in batch)
+
+            inputs = {
+                "input_ids": batch[0],
+                "attention_mask": batch[1],
+                "token_type_ids": batch[2],
+                "start_positions": batch[3],
+                "end_positions": batch[4],
+            }
+
             # ----------------------------------------------------------------------------------------
             # TODO
             # 补全代码 2
@@ -267,6 +283,12 @@ def train(args, train_dataset, model, tokenizer):
             # 补全代码 2
             # 继续补全模型训练部分
             # ----------------------------------------------------------------------------------------
+
+            outputs = model(**inputs)
+            # model outputs are always tuple in transformers (see doc)
+            loss = outputs[0]
+
+
 
             if args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu parallel (not distributed) training
@@ -905,6 +927,26 @@ def main():
         torch.distributed.barrier()
 
     args.model_type = args.model_type.lower()
+
+    config = BertConfig.from_pretrained(
+        args.config_name if args.config_name else args.model_name_or_path,
+        cache_dir=args.cache_dir if args.cache_dir else None,
+    )
+    tokenizer = BertTokenizer.from_pretrained(
+        args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
+        do_lower_case=args.do_lower_case,
+        cache_dir=args.cache_dir if args.cache_dir else None,
+    )
+    model = AutoModelForQuestionAnswering.from_pretrained(
+        args.model_name_or_path,
+        from_tf=bool(".ckpt" in args.model_name_or_path),
+        config=config,
+        cache_dir=args.cache_dir if args.cache_dir else None,
+    )
+
+
+
+
     # ----------------------------------------------------------------------------------------
     # TODO
     # 补全代码 1
